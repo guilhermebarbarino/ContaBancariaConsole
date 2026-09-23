@@ -1,4 +1,4 @@
-﻿using ContaBancaria.Domain.Entidades;
+using ContaBancaria.Domain.Entidades;
 using ContaBancaria.Domain.Interfaces;
 using ContaBancaria.Infrastructure.Persistence;
 
@@ -16,7 +16,6 @@ public class MovimentacaoRepository : IMovimentacaoRepository
     public void Adicionar(Movimentacao movimentacao)
     {
         _context.Database.Movimentacoes.Add(movimentacao);
-        _context.SaveChanges();
     }
 
     public List<Movimentacao> ObterPorConta(int numeroConta)

@@ -1,4 +1,4 @@
-﻿using ContaBancaria.Domain.Entidades;
+using ContaBancaria.Domain.Entidades;
 using ContaBancaria.Domain.Interfaces;
 using ContaBancaria.Infrastructure.Persistence;
 
@@ -16,12 +16,12 @@ namespace ContaBancaria.Infrastructure.Repositories
         public void Adicionar(Cliente cliente)
         {
             _context.Database.Clientes.Add(cliente);
-            _context.SaveChanges();
         }
 
         public Cliente? ObterPorCpf(string cpf)
         {
-            return _context.Database.Clientes.FirstOrDefault(c => c.Cpf == cpf);
+            var cpfNormalizado = Cliente.NormalizarCpf(cpf);
+            return _context.Database.Clientes.FirstOrDefault(c => c.Cpf == cpfNormalizado);
         }
 
         public Cliente? ObterPorId(Guid id)
@@ -31,7 +31,7 @@ namespace ContaBancaria.Infrastructure.Repositories
 
         public List<Cliente> ListarTodos()
         {
-            return _context.Database.Clientes;
+            return _context.Database.Clientes.ToList();
         }
     }
 }

@@ -1,4 +1,6 @@
-﻿namespace ContaBancaria.Domain.Entidades;
+using System.Text.Json.Serialization;
+
+namespace ContaBancaria.Domain.Entidades;
 
 public class Movimentacao
 {
@@ -16,7 +18,23 @@ public class Movimentacao
         decimal valor,
         string descricao,
         decimal saldoAposMovimentacao)
+        : this(Guid.NewGuid(), numeroConta, DateTime.Now, tipo, valor, descricao, saldoAposMovimentacao)
     {
+    }
+
+    [JsonConstructor]
+    public Movimentacao(
+        Guid id,
+        int numeroConta,
+        DateTime data,
+        string tipo,
+        decimal valor,
+        string descricao,
+        decimal saldoAposMovimentacao)
+    {
+        if (id == Guid.Empty)
+            throw new ArgumentException("Identificador da movimentação inválido.");
+
         if (numeroConta <= 0)
             throw new ArgumentException("Número da conta inválido.");
 
@@ -26,9 +44,9 @@ public class Movimentacao
         if (valor <= 0)
             throw new ArgumentException("Valor da movimentação deve ser maior que zero.");
 
-        Id = Guid.NewGuid();
+        Id = id;
         NumeroConta = numeroConta;
-        Data = DateTime.Now;
+        Data = data;
         Tipo = tipo;
         Valor = valor;
         Descricao = descricao;

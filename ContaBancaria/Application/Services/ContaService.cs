@@ -1,112 +1,92 @@
-﻿using ContaBancaria.Domain.Entidades;
+using ContaBancaria.Domain.Entidades;
 using ContaBancaria.Domain.Interfaces;
 
-namespace ContaBancaria.Application.Services
-{ 
-    public class ContaService
+namespace ContaBancaria.Application.Services;
+
+public class ContaService
+{
+    private readonly IContaRepository _contaRepository;
+    private readonly IClienteRepository _clienteRepository;
+    private readonly IMovimentacaoRepository _movimentacaoRepository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ContaService(
+        IContaRepository contaRepository,
+        IClienteRepository clienteRepository,
+        IMovimentacaoRepository movimentacaoRepository,
+        IUnitOfWork unitOfWork)
     {
-        private readonly IContaRepository _contaRepository;
-        private readonly IClienteRepository _clienteRepository;
-        private readonly IMovimentacaoRepository _movimentacaoRepository;
+        _contaRepository = contaRepository;
+        _clienteRepository = clienteRepository;
+        _movimentacaoRepository = movimentacaoRepository;
+        _unitOfWork = unitOfWork;
+    }
 
-        public ContaService(
-            IContaRepository contaRepository,
-            IClienteRepository clienteRepository,
-            IMovimentacaoRepository movimentacaoRepository)
+    public List<Conta> ListarContasPorCpf(string cpf)
+    {
+        var cliente = _clienteRepository.ObterPorCpf(cpf)
+            ?? throw new InvalidOperationException("Cliente não encontrado.");
+
+        return _contaRepository.ObterPorClienteId(cliente.Id);
+    }
+
+    public void Depositar(int numeroConta, decimal valor)
+    {
+        _unitOfWork.Executar(() =>
         {
-            _contaRepository = contaRepository;
-            _clienteRepository = clienteRepository;
-            _movimentacaoRepository = movimentacaoRepository;
-        }
-
-        public List<Conta> ListarContasPorCpf(string cpf)
-        {
-            var cliente = _clienteRepository.ObterPorCpf(cpf)
-                ?? throw new InvalidOperationException("Cliente não encontrado.");
-
-            return _contaRepository.ObterPorClienteId(cliente.Id);
-        }
-
-        public void Depositar(int numeroConta, decimal valor)
-        {
-            var conta = _contaRepository.ObterPorNumero(numeroConta)
-                ?? throw new InvalidOperationException("Conta não encontrada.");
-
+            var conta = ConsultarSaldo(numeroConta);
             conta.Depositar(valor);
-            _contaRepository.SalvarAlteracoes();
 
-            var movimentacao = new Movimentacao(
-                conta.Numero,
-                "DEPÓSITO",
-                valor,
-                "Depósito realizado com sucesso",
-                conta.Saldo);
+            _movimentacaoRepository.Adicionar(new Movimentacao(
+                conta.Numero, "DEPÓSITO", valor, "Depósito realizado com sucesso", conta.Saldo));
+        });
+    }
 
-            _movimentacaoRepository.Adicionar(movimentacao);
-        }
-
-        public void Sacar(int numeroConta, decimal valor)
+    public void Sacar(int numeroConta, decimal valor)
+    {
+        _unitOfWork.Executar(() =>
         {
-            var conta = _contaRepository.ObterPorNumero(numeroConta)
-                ?? throw new InvalidOperationException("Conta não encontrada.");
-
+            var conta = ConsultarSaldo(numeroConta);
             conta.Sacar(valor);
-            _contaRepository.SalvarAlteracoes();
 
-            var movimentacao = new Movimentacao(
-                conta.Numero,
-                "SAQUE",
-                valor,
-                "Saque realizado com sucesso",
-                conta.Saldo);
+            _movimentacaoRepository.Adicionar(new Movimentacao(
+                conta.Numero, "SAQUE", valor, "Saque realizado com sucesso", conta.Saldo));
+        });
+    }
 
-            _movimentacaoRepository.Adicionar(movimentacao);
-        }
-
-        public void Transferir(int origemNumero, int destinoNumero, decimal valor)
+    public void Transferir(int origemNumero, int destinoNumero, decimal valor)
+    {
+        _unitOfWork.Executar(() =>
         {
-            var origem = _contaRepository.ObterPorNumero(origemNumero);
-            var destino = _contaRepository.ObterPorNumero(destinoNumero);
-
-            if (origem is null || destino is null)
-                throw new InvalidOperationException("Transferência não concluída! Conta não encontrada.");
-
-            if (origem.Numero == destino.Numero && origem.Agencia == destino.Agencia)
-                throw new InvalidOperationException("Transferência não concluída! Não é permitido transferir para a mesma conta.");
-
+            var origem = ConsultarSaldo(origemNumero);
+            var destino = ConsultarSaldo(destinoNumero);
             origem.TransferirPara(destino, valor);
-            _contaRepository.SalvarAlteracoes();
 
-            var movimentacaoOrigem = new Movimentacao(
+            _movimentacaoRepository.Adicionar(new Movimentacao(
                 origem.Numero,
                 "TRANSFERÊNCIA ENVIADA",
                 valor,
                 $"Transferência para conta {destino.Numero}-{destino.Dac}",
-                origem.Saldo);
+                origem.Saldo));
 
-            var movimentacaoDestino = new Movimentacao(
+            _movimentacaoRepository.Adicionar(new Movimentacao(
                 destino.Numero,
                 "TRANSFERÊNCIA RECEBIDA",
                 valor,
                 $"Transferência recebida da conta {origem.Numero}-{origem.Dac}",
-                destino.Saldo);
+                destino.Saldo));
+        });
+    }
 
-            _movimentacaoRepository.Adicionar(movimentacaoOrigem);
-            _movimentacaoRepository.Adicionar(movimentacaoDestino);
-        }
+    public Conta ConsultarSaldo(int numeroConta)
+    {
+        return _contaRepository.ObterPorNumero(numeroConta)
+            ?? throw new InvalidOperationException("Conta não encontrada.");
+    }
 
-        public Conta ConsultarSaldo(int numeroConta)
-        {
-            return _contaRepository.ObterPorNumero(numeroConta)
-                ?? throw new InvalidOperationException("Conta não encontrada.");
-        }
-
-        public List<Movimentacao> ConsultarExtrato(int numeroConta)
-        {
-            var conta = _contaRepository.ObterPorNumero(numeroConta)
-                ?? throw new InvalidOperationException("Conta não encontrada.");
-
-            return _movimentacaoRepository.ObterPorConta(conta.Numero);
-        }
+    public List<Movimentacao> ConsultarExtrato(int numeroConta)
+    {
+        var conta = ConsultarSaldo(numeroConta);
+        return _movimentacaoRepository.ObterPorConta(conta.Numero);
     }
 }

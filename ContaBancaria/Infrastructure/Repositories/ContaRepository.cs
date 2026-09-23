@@ -1,4 +1,4 @@
-﻿using ContaBancaria.Domain.Entidades;
+using ContaBancaria.Domain.Entidades;
 using ContaBancaria.Domain.Interfaces;
 using ContaBancaria.Infrastructure.Persistence;
 
@@ -16,7 +16,6 @@ namespace ContaBancaria.Infrastructure.Repositories
         public void Adicionar(Conta conta)
         {
             _context.Database.Contas.Add(conta);
-            _context.SaveChanges();
         }
 
         public Conta? ObterPorNumero(int numero)
@@ -33,7 +32,7 @@ namespace ContaBancaria.Infrastructure.Repositories
 
         public List<Conta> ListarTodas()
         {
-            return _context.Database.Contas;
+            return _context.Database.Contas.ToList();
         }
 
         public int ObterProximoNumeroConta()
@@ -41,12 +40,7 @@ namespace ContaBancaria.Infrastructure.Repositories
             if (!_context.Database.Contas.Any())
                 return 1001;
 
-            return _context.Database.Contas.Max(c => c.Numero) + 1;
-        }
-
-        public void SalvarAlteracoes()
-        {
-            _context.SaveChanges();
+            return checked(_context.Database.Contas.Max(c => c.Numero) + 1);
         }
     }
 }

@@ -1,0 +1,15 @@
+# Visual Studio e arquivos pessoais do editor
+.vs/
+*.user
+*.suo
+
+# Saídas de compilação e testes
+**/bin/
+**/obj/
+TestResults/
+*.trx
+
+# Dados locais da aplicação
+database.json
+database.json.*.tmp
+Extratos/

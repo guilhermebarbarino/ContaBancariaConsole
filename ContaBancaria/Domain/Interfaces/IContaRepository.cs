@@ -1,4 +1,4 @@
-﻿using ContaBancaria.Domain.Entidades;
+using ContaBancaria.Domain.Entidades;
 
 namespace ContaBancaria.Domain.Interfaces;
 
@@ -9,5 +9,4 @@ public interface IContaRepository
     List<Conta> ObterPorClienteId(Guid clienteId);
     List<Conta> ListarTodas();
     int ObterProximoNumeroConta();
-    void SalvarAlteracoes();
 }

@@ -1,11 +1,33 @@
-﻿using ContaBancaria.Application.Services;
+using System.Globalization;
+using System.Text;
+using System.Text.Json;
+using ContaBancaria.Application.Services;
 using ContaBancaria.Domain.Interfaces;
 using ContaBancaria.Infrastructure.Persistence;
 using ContaBancaria.Infrastructure.Repositories;
 
 internal class Program
 {
-    private static void Main(string[] args)
+    private static int Main()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("pt-BR");
+        CultureInfo.CurrentUICulture = CultureInfo.CurrentCulture;
+        Console.OutputEncoding = Encoding.UTF8;
+
+        try
+        {
+            Executar();
+            return 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException
+                                   or ArgumentException or InvalidOperationException)
+        {
+            Console.Error.WriteLine($"Não foi possível abrir a base de dados: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static void Executar()
     {
         var jsonDatabase = new JsonDatabase("database.json");
         var context = new InMemoryDatabaseContext(jsonDatabase);
@@ -15,8 +37,8 @@ internal class Program
         IMovimentacaoRepository movimentacaoRepository = new MovimentacaoRepository(context);
         IExtratoExportService extratoExportService = new ExtratoExportService();
 
-        var clienteService = new ClienteService(clienteRepository, contaRepository);
-        var contaService = new ContaService(contaRepository, clienteRepository, movimentacaoRepository);
+        var clienteService = new ClienteService(clienteRepository, contaRepository, context);
+        var contaService = new ContaService(contaRepository, clienteRepository, movimentacaoRepository, context);
 
         while (true)
         {
@@ -32,7 +54,9 @@ internal class Program
             Console.WriteLine("9 - Exportar extrato");
             Console.WriteLine("0 - Sair");
 
-            var opcao = Console.ReadLine();
+            var opcao = Console.ReadLine()?.Trim();
+            if (opcao is null)
+                return;
 
             try
             {
@@ -52,7 +76,8 @@ internal class Program
                         var nome = Console.ReadLine() ?? string.Empty;
 
                         Console.Write("Data de nascimento (yyyy-MM-dd): ");
-                        if (!DateTime.TryParse(Console.ReadLine(), out var dataNascimento))
+                        if (!DateTime.TryParseExact(Console.ReadLine(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                            DateTimeStyles.None, out var dataNascimento))
                         {
                             Console.WriteLine("Data inválida.");
                             break;
@@ -62,8 +87,8 @@ internal class Program
                         var contasCriadas = contaService.ListarContasPorCpf(cpfCadastro);
                         var contaCriada = contasCriadas.First();
 
-                        Console.WriteLine($"O Cliente  {cliente.Nome} - foi cadastrado com sucesso.");
-                        Console.WriteLine($"Conta criada automaticamente pelo nosso sistema...");
+                        Console.WriteLine($"Cliente {cliente.Nome} cadastrado com sucesso.");
+                        Console.WriteLine("Conta criada automaticamente pelo nosso sistema.");
                         Console.WriteLine($"Agência: {contaCriada.Agencia} | Conta: {contaCriada.Numero} | DAC: {contaCriada.Dac}");
                         break;
 
@@ -80,7 +105,7 @@ internal class Program
                         {
                             Console.WriteLine($"Nome: {c.Nome} | CPF: {c.ObterCpfMascarado()} | Idade: {c.ObterIdade()}");
                         }
-                        break;                
+                        break;
 
                     case "3":
                         Console.Write("Informe o CPF do cliente: ");
@@ -101,68 +126,41 @@ internal class Program
                         break;
 
                     case "4":
-                        Console.Write("Conta: ");
-                        var contaDeposito = int.Parse(Console.ReadLine() ?? "0");
+                        var contaDeposito = LerNumeroConta("Conta: ");
 
-                        Console.Write("Valor: ");
-                        var valorDeposito = decimal.Parse(Console.ReadLine() ?? "0");
+                        var valorDeposito = LerValor();
 
                         contaService.Depositar(contaDeposito, valorDeposito);
                         Console.WriteLine("Depósito realizado com sucesso.");
                         break;
 
                     case "5":
-                        Console.Write("Conta: ");
-                        var contaSaque = int.Parse(Console.ReadLine() ?? "0");
+                        var contaSaque = LerNumeroConta("Conta: ");
 
-                        Console.Write("Valor: ");
-                        var valorSaque = decimal.Parse(Console.ReadLine() ?? "0");
+                        var valorSaque = LerValor();
 
                         contaService.Sacar(contaSaque, valorSaque);
                         Console.WriteLine("Saque realizado com sucesso.");
                         break;
 
                     case "6":
-                        Console.Write("Conta origem: ");
-                        if (!int.TryParse(Console.ReadLine(), out var origem))
-                        {
-                            Console.WriteLine("Conta de origem inválida.");
-                            break;
-                        }
-
-                        Console.Write("Conta destino: ");
-                        if (!int.TryParse(Console.ReadLine(), out var destino))
-                        {
-                            Console.WriteLine("Conta de destino inválida.");
-                            break;
-                        }
-
-                        Console.Write("Valor: ");
-                        if (!decimal.TryParse(Console.ReadLine(), out var valorTransferencia))
-                        {
-                            Console.WriteLine("Valor inválido.");
-                            break;
-                        }
+                        var origem = LerNumeroConta("Conta origem: ");
+                        var destino = LerNumeroConta("Conta destino: ");
+                        var valorTransferencia = LerValor();
 
                         contaService.Transferir(origem, destino, valorTransferencia);
                         Console.WriteLine("Transferência realizada com sucesso.");
                         break;
 
                     case "7":
-                        Console.Write("Conta: ");
-                        var contaConsulta = int.Parse(Console.ReadLine() ?? "0");
+                        var contaConsulta = LerNumeroConta("Conta: ");
 
                         var contaSaldo = contaService.ConsultarSaldo(contaConsulta);
                         Console.WriteLine($"Saldo atual: {contaSaldo.Saldo:C}");
                         break;
 
                     case "8":
-                        Console.Write("Informe o número da conta: ");
-                        if (!int.TryParse(Console.ReadLine(), out var numeroContaExtrato))
-                        {
-                            Console.WriteLine("Número da conta inválido.");
-                            break;
-                        }
+                        var numeroContaExtrato = LerNumeroConta("Informe o número da conta: ");
 
                         var extrato = contaService.ConsultarExtrato(numeroContaExtrato);
 
@@ -181,12 +179,7 @@ internal class Program
                         break;
 
                     case "9":
-                        Console.Write("Informe o número da conta: ");
-                        if (!int.TryParse(Console.ReadLine(), out var numeroContaExportacao))
-                        {
-                            Console.WriteLine("Número da conta inválido.");
-                            break;
-                        }
+                        var numeroContaExportacao = LerNumeroConta("Informe o número da conta: ");
 
                         var movimentacoes = contaService.ConsultarExtrato(numeroContaExportacao);
 
@@ -241,10 +234,30 @@ internal class Program
                         break;
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException
+                                       or IOException or UnauthorizedAccessException or OverflowException)
             {
                 Console.WriteLine($"Erro: {ex.Message}");
             }
         }
+    }
+
+    private static int LerNumeroConta(string mensagem)
+    {
+        Console.Write(mensagem);
+        if (!int.TryParse(Console.ReadLine(), out var numero) || numero <= 0)
+            throw new ArgumentException("Número da conta inválido. Informe um inteiro positivo.");
+
+        return numero;
+    }
+
+    private static decimal LerValor()
+    {
+        Console.Write("Valor (ex.: 100,50, sem separador de milhar): ");
+        const NumberStyles formato = NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint;
+        if (!decimal.TryParse(Console.ReadLine()?.Trim(), formato, CultureInfo.CurrentCulture, out var valor))
+            throw new ArgumentException("Valor inválido. Use vírgula para os centavos, por exemplo: 100,50.");
+
+        return valor;
     }
 }

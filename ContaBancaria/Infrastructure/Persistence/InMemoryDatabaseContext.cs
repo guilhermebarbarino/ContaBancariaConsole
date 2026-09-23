@@ -1,8 +1,11 @@
-﻿namespace ContaBancaria.Infrastructure.Persistence;
+using System.Text.Json;
+using ContaBancaria.Domain.Interfaces;
 
-public class InMemoryDatabaseContext
+namespace ContaBancaria.Infrastructure.Persistence;
+
+public class InMemoryDatabaseContext : IUnitOfWork
 {
-    public DatabaseModel Database { get; }
+    public DatabaseModel Database { get; private set; }
 
     private readonly JsonDatabase _jsonDatabase;
 
@@ -12,8 +15,22 @@ public class InMemoryDatabaseContext
         Database = _jsonDatabase.Carregar();
     }
 
-    public void SaveChanges()
+    public void Executar(Action operacao)
     {
-        _jsonDatabase.Salvar(Database);
+        ArgumentNullException.ThrowIfNull(operacao);
+
+        var estadoAnterior = JsonSerializer.Deserialize<DatabaseModel>(
+            JsonSerializer.SerializeToUtf8Bytes(Database))!;
+
+        try
+        {
+            operacao();
+            _jsonDatabase.Salvar(Database);
+        }
+        catch
+        {
+            Database = estadoAnterior;
+            throw;
+        }
     }
 }

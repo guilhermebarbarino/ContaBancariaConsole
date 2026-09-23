@@ -1,6 +1,7 @@
-﻿using ContaBancaria.Application.Enums;
+using ContaBancaria.Application.Enums;
 using ContaBancaria.Domain.Entidades;
 using ContaBancaria.Domain.Interfaces;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -8,6 +9,14 @@ namespace ContaBancaria.Application.Services
 {
     public class ExtratoExportService : IExtratoExportService
     {
+        private static readonly CultureInfo CulturaBrasileira = CultureInfo.GetCultureInfo("pt-BR");
+        private readonly string _pastaExportacao;
+
+        public ExtratoExportService(string? pastaExportacao = null)
+        {
+            _pastaExportacao = pastaExportacao ?? Path.Combine(Directory.GetCurrentDirectory(), "Extratos");
+        }
+
         public string Exportar(
             List<Movimentacao> movimentacoes,
             int numeroConta,
@@ -16,15 +25,17 @@ namespace ContaBancaria.Application.Services
             if (movimentacoes is null || movimentacoes.Count == 0)
                 throw new InvalidOperationException("Não há movimentações para exportar.");
 
-            var pastaExportacao = Path.Combine(Directory.GetCurrentDirectory(), "Extratos");
-            Directory.CreateDirectory(pastaExportacao);
+            if (!Enum.IsDefined(tipoExportacao))
+                throw new InvalidOperationException("Tipo de exportação inválido.");
 
-            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            Directory.CreateDirectory(_pastaExportacao);
+
+            var timestamp = $"{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}";
 
             return tipoExportacao switch
             {
-                TipoExportacaoExtrato.Txt => ExportarTxt(movimentacoes, numeroConta, pastaExportacao, timestamp),
-                TipoExportacaoExtrato.Json => ExportarJson(movimentacoes, numeroConta, pastaExportacao, timestamp),
+                TipoExportacaoExtrato.Txt => ExportarTxt(movimentacoes, numeroConta, _pastaExportacao, timestamp),
+                TipoExportacaoExtrato.Json => ExportarJson(movimentacoes, numeroConta, _pastaExportacao, timestamp),
                 _ => throw new InvalidOperationException("Tipo de exportação inválido.")
             };
         }
@@ -51,9 +62,9 @@ namespace ContaBancaria.Application.Services
                 sb.AppendLine(
                     $"{item.Data:dd/MM/yyyy HH:mm:ss} | " +
                     $"Tipo: {item.Tipo} | " +
-                    $"Valor: {item.Valor:C} | " +
+                    $"Valor: {item.Valor.ToString("C", CulturaBrasileira)} | " +
                     $"Descrição: {item.Descricao} | " +
-                    $"Saldo após: {item.SaldoAposMovimentacao:C}");
+                    $"Saldo após: {item.SaldoAposMovimentacao.ToString("C", CulturaBrasileira)}");
             }
 
             sb.AppendLine(new string('-', 100));

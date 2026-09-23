@@ -1,4 +1,4 @@
-﻿using ContaBancaria.Domain.Entidades;
+using ContaBancaria.Domain.Entidades;
 using ContaBancaria.Domain.Interfaces;
 
 namespace ContaBancaria.Application.Services
@@ -7,13 +7,16 @@ namespace ContaBancaria.Application.Services
     {
         private readonly IClienteRepository _clienteRepository;
         private readonly IContaRepository _contaRepository;
+        private readonly IUnitOfWork _unitOfWork;
 
         public ClienteService(
             IClienteRepository clienteRepository,
-            IContaRepository contaRepository)
+            IContaRepository contaRepository,
+            IUnitOfWork unitOfWork)
         {
             _clienteRepository = clienteRepository;
             _contaRepository = contaRepository;
+            _unitOfWork = unitOfWork;
         }
 
         public bool CpfJaCadastrado(string cpf)
@@ -23,34 +26,22 @@ namespace ContaBancaria.Application.Services
 
         public Cliente Cadastrar(string nome, string cpf, DateTime dataNascimento)
         {
-            if (string.IsNullOrWhiteSpace(nome))
-                throw new ArgumentException("Nome é obrigatório.");
-
-            if (string.IsNullOrWhiteSpace(cpf))
-                throw new ArgumentException("CPF é obrigatório.");
-
-            if (CpfJaCadastrado(cpf))
-                throw new InvalidOperationException("Já existe cliente cadastrado com esse CPF.");
-
             var cliente = new Cliente(nome, cpf, dataNascimento);
 
             if (cliente.ObterIdade() < 18)
-                throw new InvalidOperationException("Cliente deve ser maior de 18 anos.");
+                throw new InvalidOperationException("Cliente deve ter pelo menos 18 anos.");
 
-            _clienteRepository.Adicionar(cliente);
+            _unitOfWork.Executar(() =>
+            {
+                if (CpfJaCadastrado(cliente.Cpf))
+                    throw new InvalidOperationException("Já existe cliente cadastrado com esse CPF.");
 
-            var numeroConta = _contaRepository.ObterProximoNumeroConta();
-            var agencia = "0001";
-            var dac = GerarDac(numeroConta);
+                var numeroConta = _contaRepository.ObterProximoNumeroConta();
+                var conta = new Conta("0001", numeroConta, GerarDac(numeroConta), cliente.Id);
 
-            var conta = new Conta(
-                agencia,
-                numeroConta,
-                dac,
-                cliente.Id,
-                0);
-
-            _contaRepository.Adicionar(conta);
+                _clienteRepository.Adicionar(cliente);
+                _contaRepository.Adicionar(conta);
+            });
 
             return cliente;
         }
@@ -65,7 +56,7 @@ namespace ContaBancaria.Application.Services
             return _clienteRepository.ListarTodos();
         }
 
-        private int GerarDac(int numeroConta)
+        private static int GerarDac(int numeroConta)
         {
             return numeroConta % 10;
         }
