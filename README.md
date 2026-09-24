@@ -60,6 +60,10 @@ educacional e não implementa autenticação ou criptografia dos dados locais.
 
 Os arquivos locais de dados, extratos, IDE e compilação são ignorados pelo Git.
 
+## Integração contínua
+
+O GitHub Actions executa restore, build e testes de regressão no .NET 8 em cada push e pull request para `main`. A execução manual também está disponível na aba **Actions**.
+
 ## Testes
 
 ```bash
